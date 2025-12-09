@@ -58,15 +58,25 @@ app.get('/api/health', async (req, res) => {
     
     const menuCount = await MenuItem.countDocuments();
     const orderCount = await Order.countDocuments();
-    const cartCount = await Cart.countDocuments();
+    
+    // Count carts that actually have items
+    const cartsWithItems = await Cart.find({ 
+      'items.0': { $exists: true } // Check if items array has at least 1 item
+    });
+    const cartCount = cartsWithItems.length;
+    
+    // Count total items across all carts
+    const allCarts = await Cart.find({});
+    const totalCartItems = allCarts.reduce((total, cart) => total + cart.items.length, 0);
     
     res.json({
       status: 'healthy',
-      mode: 'mongodb-atlas',  // Changed from 'mongodb'
+      mode: 'mongodb-atlas',
       database: mongoose.connection.name,
       menuItems: menuCount,
       orders: orderCount,
-      carts: cartCount,
+      carts: cartCount, // Only carts with items
+      totalCartItems: totalCartItems, // Total items count
       timestamp: new Date().toISOString()
     });
   } catch (error) {
