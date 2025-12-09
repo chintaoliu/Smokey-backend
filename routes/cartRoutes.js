@@ -92,6 +92,7 @@ router.post('/:sessionId/items', async (req, res) => {
 // Update cart item quantity
 router.put('/:sessionId/items/:itemId', async (req, res) => {
     console.log('PUT /api/cart/:sessionId/items/:itemId called');
+    console.log('Updating itemId:', req.params.itemId);
     
     try {
         const { quantity } = req.body;
@@ -105,9 +106,14 @@ router.put('/:sessionId/items/:itemId', async (req, res) => {
             return res.status(404).json({ error: 'Cart not found' });
         }
         
+        console.log('Current cart items:', cart.items);
+        
+        // FIXED: Use menuItemId instead of _id
         const itemIndex = cart.items.findIndex(
-            item => item._id.toString() === req.params.itemId
+            item => item.menuItemId.toString() === req.params.itemId
         );
+        
+        console.log('Found item at index:', itemIndex);
         
         if (itemIndex === -1) {
             return res.status(404).json({ error: 'Item not found in cart' });
@@ -135,6 +141,7 @@ router.put('/:sessionId/items/:itemId', async (req, res) => {
 // Remove item from cart
 router.delete('/:sessionId/items/:itemId', async (req, res) => {
     console.log('DELETE /api/cart/:sessionId/items/:itemId called');
+    console.log('Trying to remove itemId:', req.params.itemId);
     
     try {
         const cart = await Cart.findOne({ sessionId: req.params.sessionId });
@@ -142,13 +149,21 @@ router.delete('/:sessionId/items/:itemId', async (req, res) => {
             return res.status(404).json({ error: 'Cart not found' });
         }
         
+        console.log('Current cart items:', cart.items);
+        
+        // FIXED: Use menuItemId instead of _id
         const initialLength = cart.items.length;
         cart.items = cart.items.filter(
-            item => item._id.toString() !== req.params.itemId
+            item => item.menuItemId.toString() !== req.params.itemId
         );
         
+        console.log('After filter, items length:', cart.items.length);
+        
         if (cart.items.length === initialLength) {
-            return res.status(404).json({ error: 'Item not found in cart' });
+            return res.status(404).json({ 
+                error: 'Item not found in cart',
+                details: `Item with menuItemId ${req.params.itemId} not found`
+            });
         }
         
         // Calculate totals
@@ -160,6 +175,7 @@ router.delete('/:sessionId/items/:itemId', async (req, res) => {
         await cart.save();
         await cart.populate('items.menuItemId', 'name description price');
         
+        console.log('Item removed successfully');
         res.json(cart);
     } catch (error) {
         console.error('Error removing item from cart:', error);
@@ -188,6 +204,34 @@ router.delete('/:sessionId', async (req, res) => {
         res.json({ message: 'Cart cleared successfully' });
     } catch (error) {
         console.error('Error clearing cart:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Debug endpoint to see cart structure (optional - remove in production)
+router.get('/:sessionId/debug', async (req, res) => {
+    try {
+        const cart = await Cart.findOne({ sessionId: req.params.sessionId });
+        if (!cart) {
+            return res.status(404).json({ error: 'Cart not found' });
+        }
+        
+        res.json({
+            cartId: cart._id,
+            sessionId: cart.sessionId,
+            items: cart.items.map(item => ({
+                itemId: item._id,
+                menuItemId: item.menuItemId,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity
+            })),
+            itemCount: cart.items.length,
+            subtotal: cart.subtotal,
+            total: cart.total,
+            lastUpdated: cart.lastUpdated
+        });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
