@@ -93,37 +93,70 @@ router.post('/:sessionId/items', async (req, res) => {
 router.put('/:sessionId/items/:itemId', async (req, res) => {
     console.log('PUT /api/cart/:sessionId/items/:itemId called');
     console.log('Updating itemId:', req.params.itemId);
+    console.log('Request body:', req.body);
     
     try {
         const { quantity } = req.body;
         
-        if (!quantity || quantity < 1) {
-            return res.status(400).json({ error: 'Quantity must be at least 1' });
+        // Validate input
+        if (!quantity) {
+            return res.status(400).json({ 
+                error: 'Quantity is required',
+                received: req.body 
+            });
         }
         
+        if (quantity < 1) {
+            return res.status(400).json({ 
+                error: 'Quantity must be at least 1',
+                received: quantity 
+            });
+        }
+        
+        // Find cart
         const cart = await Cart.findOne({ sessionId: req.params.sessionId });
         if (!cart) {
-            return res.status(404).json({ error: 'Cart not found' });
+            console.log('Cart not found for session:', req.params.sessionId);
+            return res.status(404).json({ 
+                error: 'Cart not found',
+                sessionId: req.params.sessionId 
+            });
         }
         
-        console.log('Current cart items:', cart.items);
+        console.log('Cart found, items count:', cart.items.length);
         
-        // FIXED: Use menuItemId instead of _id
+        // Find item by menuItemId
         const itemIndex = cart.items.findIndex(
-            item => item.menuItemId.toString() === req.params.itemId
+            item => {
+                if (!item.menuItemId) {
+                    console.log('Item missing menuItemId:', item);
+                    return false;
+                }
+                return item.menuItemId.toString() === req.params.itemId;
+            }
         );
         
         console.log('Found item at index:', itemIndex);
         
         if (itemIndex === -1) {
-            return res.status(404).json({ error: 'Item not found in cart' });
+            return res.status(404).json({ 
+                error: 'Item not found in cart',
+                itemId: req.params.itemId,
+                availableItems: cart.items.map(item => ({
+                    menuItemId: item.menuItemId,
+                    name: item.name
+                }))
+            });
         }
         
         // Update quantity
         cart.items[itemIndex].quantity = quantity;
         
         // Calculate totals
-        cart.subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        cart.subtotal = cart.items.reduce((sum, item) => {
+            return sum + (item.price * item.quantity);
+        }, 0);
+        
         cart.tax = cart.subtotal * 0.02;
         cart.total = cart.subtotal + cart.tax;
         cart.lastUpdated = new Date();
@@ -131,13 +164,23 @@ router.put('/:sessionId/items/:itemId', async (req, res) => {
         await cart.save();
         await cart.populate('items.menuItemId', 'name description price');
         
-        res.json(cart);
+        console.log('Item updated successfully');
+        res.json({
+            success: true,
+            cart: cart
+        });
+        
     } catch (error) {
         console.error('Error updating cart item:', error);
-        res.status(500).json({ error: error.message });
+        console.error('Error stack:', error.stack);
+        res.status(500).json({ 
+            error: 'Internal server error',
+            message: error.message 
+        });
     }
 });
 
+// 🔴 IMPORTANT: YOU'RE MISSING THIS ENDPOINT! Add it:
 // Remove item from cart
 router.delete('/:sessionId/items/:itemId', async (req, res) => {
     console.log('DELETE /api/cart/:sessionId/items/:itemId called');
@@ -154,7 +197,13 @@ router.delete('/:sessionId/items/:itemId', async (req, res) => {
         // FIXED: Use menuItemId instead of _id
         const initialLength = cart.items.length;
         cart.items = cart.items.filter(
-            item => item.menuItemId.toString() !== req.params.itemId
+            item => {
+                if (!item.menuItemId) {
+                    console.log('Item missing menuItemId:', item);
+                    return true; // Keep items without menuItemId (shouldn't happen)
+                }
+                return item.menuItemId.toString() !== req.params.itemId;
+            }
         );
         
         console.log('After filter, items length:', cart.items.length);
