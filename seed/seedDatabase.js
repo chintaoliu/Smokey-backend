@@ -1,5 +1,6 @@
 ﻿const mongoose = require('mongoose');
 const MenuItem = require('../models/MenuItem');
+require('dotenv').config();
 
 const seedData = [
     // Smoked Meats
@@ -108,7 +109,7 @@ const seedData = [
 
 async function seedDatabase() {
     try {
-        await mongoose.connect('mongodb://localhost:27017/smokey_restaurant');
+        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/smokey_restaurant');
         
         console.log('Connected to MongoDB');
         
