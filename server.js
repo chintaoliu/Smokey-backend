@@ -1,12 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-require('dotenv').config();
 
 // Import models
 require('./models/MenuItem');
 require('./models/Cart');
 require('./models/Order');
+require('dotenv').config();
+
+console.log('🚀 Starting server with NODE_ENV:', process.env.NODE_ENV);
+console.log('🌍 Allowed origins:', 
+  process.env.NODE_ENV === 'production' 
+    ? ['https://smokey.infinityfreeapp.com'] 
+    : ['http://localhost:5173', 'http://localhost:3000']
+);
 
 const app = express();
 
@@ -75,7 +82,7 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Smokey Restaurant API',
     version: '1.0.0',
-    mode: process.env.NODE_ENV || 'development',
+    mode: process.env.NODE_ENV || 'production',
     database: 'MongoDB Atlas',
     endpoints: {
       menu: 'GET /api/menu',
